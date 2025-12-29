@@ -44,7 +44,7 @@ try:
 
         # Check for keywords
         if any(k.lower() in text.lower() for k in KEYWORDS):
-            if href not in seen:
+            if True:
                 send(f"New IOST Notice:\n{text}")
                 new_seen.add(href)
 
@@ -54,3 +54,4 @@ try:
 
 except Exception as e:
     print("Error:", e)
+
