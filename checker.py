@@ -3,64 +3,77 @@ from bs4 import BeautifulSoup
 import os
 import urllib3
 
-# Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# IOST notices page
 URL = "https://iost.tu.edu.np/notices"
 
-# Keywords to match relevant notices
-KEYWORDS = ["B.Sc.CSIT 2078", "B.Sc.CSIT VIII Semester", "B.Sc.CSIT VIII Semester Exam"]
+KEYWORDS = [
+    "B.Sc.CSIT 2078",
+    "B.Sc.CSIT VIII Semester",
+    "B.Sc.CSIT VIII Semester Exam"
+]
 
-# Telegram credentials
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# File to store already seen notice links
-seen_file = "seen.txt"
+TG_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 def send(msg):
-    """Send message via Telegram bot"""
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, verify=False)
+    requests.post(
+        f"{TG_API}/sendMessage",
+        data={"chat_id": CHAT_ID, "text": msg},
+        verify=False
+    )
 
-# Load already seen links
-seen = set()
-if os.path.exists(seen_file):
-    with open(seen_file) as f:
-        seen = set(f.read().splitlines())
+def get_sent_ids():
+    """Read previously sent notice IDs from Telegram"""
+    sent_ids = set()
+    r = requests.get(f"{TG_API}/getUpdates", verify=False).json()
+
+    if not r.get("ok"):
+        return sent_ids
+
+    for upd in r["result"]:
+        msg = upd.get("message", {}).get("text", "")
+        if msg.startswith("SENT:"):
+            sent_ids.add(msg.replace("SENT:", "").strip())
+
+    return sent_ids
 
 try:
+    sent_ids = get_sent_ids()
+
     r = requests.get(URL, timeout=10, verify=False)
     soup = BeautifulSoup(r.text, "html.parser")
     links = soup.find_all("a")
 
-    new_seen = set(seen)
-
     for a in links:
         text = a.get_text(strip=True)
         href = a.get("href")
+
         if not href:
             continue
 
-        # Send only once per notice even if multiple keywords match
-        if href not in seen and any(k.lower() in text.lower() for k in KEYWORDS):
-            # Handle relative and absolute URLs
-            if href.startswith("http"):
-                full_link = href
-            else:
-                full_link = "https://iost.tu.edu.np" + href
+        if not any(k.lower() in text.lower() for k in KEYWORDS):
+            continue
 
-            # Clean, readable Telegram message
-            msg = f"📢 New IOST Notice 📢\n\n {text}\n\nLink: {full_link}"
-            send(msg)
+        # normalize ID
+        if href.startswith("http"):
+            notice_id = href.split("iost.tu.edu.np")[-1]
+            full_link = href
+        else:
+            notice_id = href
+            full_link = "https://iost.tu.edu.np" + href
 
-            # Add to seen immediately to prevent duplicates
-            new_seen.add(href)
+        # already sent
+        if notice_id in sent_ids:
+            continue
 
-    # Update seen file (will be committed in workflow)
-    with open(seen_file, "w") as f:
-        f.write("\n".join(new_seen))
+        # send notice
+        send(f"📢 New IOST Notice\n\n{text}\n{full_link}")
+
+        # store marker
+        send(f"SENT:{notice_id}")
 
 except Exception as e:
     print("Error:", e)
