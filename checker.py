@@ -43,7 +43,7 @@ try:
         if not href:
             continue
 
-        # Trigger only once per notice
+        # Send only once per notice even if multiple keywords match
         if href not in seen and any(k.lower() in text.lower() for k in KEYWORDS):
             # Handle relative and absolute URLs
             if href.startswith("http"):
@@ -52,11 +52,13 @@ try:
                 full_link = "https://iost.tu.edu.np" + href
 
             # Clean, readable Telegram message
-            msg = f"📢 New IOST Notice 📢\n\nTitle: {text}\nLink: {full_link}"
+            msg = f"📢 New IOST Notice 📢\n\n {text}\n\nLink: {full_link}"
             send(msg)
+
+            # Add to seen immediately to prevent duplicates
             new_seen.add(href)
 
-    # Update seen file
+    # Update seen file (will be committed in workflow)
     with open(seen_file, "w") as f:
         f.write("\n".join(new_seen))
 
