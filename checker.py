@@ -9,8 +9,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # IOST notices page
 URL = "https://iost.tu.edu.np/notices"
 
-# Keywords to match relevant notices
-KEYWORDS = ["Result","Notice"," Exam Result"]
+# Keywords to match relevant notices (restored to CSIT 8th semester)
+KEYWORDS = ["CSIT", "B.Sc CSIT", "B.Sc. CSIT", "8th Semester", "VIII Semester", "Eighth Semester"]
 
 # Telegram credentials from Step 3
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -20,6 +20,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 seen_file = "seen.txt"
 
 def send(msg):
+    """Send message via Telegram bot"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, verify=False)
 
@@ -37,18 +38,17 @@ try:
     new_seen = set(seen)
 
     for a in links:
-    text = a.get_text(strip=True)
-    href = a.get("href")
-    if not href:
-        continue
+        text = a.get_text(strip=True)
+        href = a.get("href")
+        if not href:
+            continue
 
-    # Check for keywords
-    if any(k.lower() in text.lower() for k in KEYWORDS):
-        if href not in seen:
-            full_link = "https://iost.tu.edu.np" + href
-            send(f"New IOST Notice:\n{text}\n{full_link}")
-            new_seen.add(href)
-
+        # Check for keywords
+        if any(k.lower() in text.lower() for k in KEYWORDS):
+            if href not in seen:
+                full_link = "https://iost.tu.edu.np" + href
+                send(f"New IOST Notice:\n{text}\n{full_link}")
+                new_seen.add(href)
 
     # Update seen file
     with open(seen_file, "w") as f:
@@ -56,6 +56,3 @@ try:
 
 except Exception as e:
     print("Error:", e)
-
-
-
