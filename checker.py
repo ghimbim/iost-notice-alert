@@ -10,7 +10,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 URL = "https://iost.tu.edu.np/notices"
 
 # Keywords to match relevant notices
-KEYWORDS = ["B.Sc.CSIT 2078","B.Sc.CSIT VIII", "B.Sc.CSIT VIII Semester","B.Sc.CSIT VIII Semester Exam", "B.Sc.CSIT VIII Notice", "B.Sc.CSIT VIII Semester Notice"]
+KEYWORDS = ["B.Sc.CSIT 2078", "B.Sc.CSIT VIII Semester", "B.Sc.CSIT VIII Semester Exam"]
 
 # Telegram credentials
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -43,15 +43,18 @@ try:
         if not href:
             continue
 
-        # Check for keywords
-        if any(k.lower() in text.lower() for k in KEYWORDS):
-            if href not in seen:
-                if href.startswith("http"):
-                    full_link = href
-                else:
-                    full_link = "https://iost.tu.edu.np" + href
-                send(f"New IOST Notice:\n\n{text}\n{full_link}")
-                new_seen.add(href)
+        # Trigger only once per notice
+        if href not in seen and any(k.lower() in text.lower() for k in KEYWORDS):
+            # Handle relative and absolute URLs
+            if href.startswith("http"):
+                full_link = href
+            else:
+                full_link = "https://iost.tu.edu.np" + href
+
+            # Clean, readable Telegram message
+            msg = f"📢 New IOST Notice 📢\n\nTitle: {text}\nLink: {full_link}"
+            send(msg)
+            new_seen.add(href)
 
     # Update seen file
     with open(seen_file, "w") as f:
