@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import os
+import json
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -14,77 +15,70 @@ KEYWORDS = [
 ]
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")              # real alerts
-STORAGE_CHAT_ID = os.getenv("STORAGE_CHAT_ID")  # private channel
+CHAT_ID = os.getenv("CHAT_ID")
 
 TG_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-def send(chat_id, msg):
+SENT_FILE = "sent.json"
+
+
+def send(msg):
     requests.post(
         f"{TG_API}/sendMessage",
-        data={"chat_id": chat_id, "text": msg},
-        verify=False
+        data={"chat_id": CHAT_ID, "text": msg},
+        verify=False,
+        timeout=10
     )
 
-def get_sent_ids():
-    """Read SENT markers from private channel"""
-    sent_ids = set()
-    r = requests.get(f"{TG_API}/getUpdates", verify=False).json()
 
-    if not r.get("ok"):
-        return sent_ids
+def load_sent_ids():
+    if not os.path.exists(SENT_FILE):
+        return set()
+    with open(SENT_FILE, "r") as f:
+        return set(json.load(f))
 
-    for upd in r["result"]:
-        msg = upd.get("message", {})
-        if str(msg.get("chat", {}).get("id")) != str(STORAGE_CHAT_ID):
-            continue
 
-        text = msg.get("text", "")
-        if text.startswith("SENT:"):
-            sent_ids.add(text.replace("SENT:", "").strip())
+def save_sent_ids(sent_ids):
+    with open(SENT_FILE, "w") as f:
+        json.dump(sorted(sent_ids), f, indent=2)
 
-    return sent_ids
 
-try:
-    sent_ids = get_sent_ids()
-    seen_this_run = set()  # prevents duplicates in same run
+def main():
+    sent_ids = load_sent_ids()
+    updated = False
 
-    r = requests.get(URL, timeout=10, verify=False)
+    r = requests.get(URL, timeout=15, verify=False)
     soup = BeautifulSoup(r.text, "html.parser")
-    links = soup.find_all("a")
 
-    for a in links:
+    for a in soup.find_all("a"):
         text = a.get_text(strip=True)
         href = a.get("href")
 
-        if not href or not text:
+        if not text or not href:
             continue
 
         if not any(k.lower() in text.lower() for k in KEYWORDS):
             continue
 
-        # normalize notice ID
         if href.startswith("http"):
-            notice_id = href.split("iost.tu.edu.np")[-1]
+            notice_id = href
             full_link = href
         else:
             notice_id = href
             full_link = "https://iost.tu.edu.np" + href
 
-        # block duplicates
-        if notice_id in sent_ids or notice_id in seen_this_run:
+        if notice_id in sent_ids:
             continue
 
-        # send real alert
-        send(
-            CHAT_ID,
-            f"📢 New IOST Notice\n\n{text}\n{full_link}"
-        )
+        # send alert
+        send(f"📢 New IOST Notice\n\n{text}\n{full_link}")
 
-        # store marker silently
-        send(STORAGE_CHAT_ID, f"SENT:{notice_id}")
+        sent_ids.add(notice_id)
+        updated = True
 
-        seen_this_run.add(notice_id)
+    if updated:
+        save_sent_ids(sent_ids)
 
-except Exception as e:
-    print("Error:", e)
+
+if __name__ == "__main__":
+    main()
