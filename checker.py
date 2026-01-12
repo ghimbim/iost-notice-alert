@@ -8,12 +8,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 URL = "https://iost.tu.edu.np/notices"
 
-KEYWORDS = [
-    "B.Sc.CSIT 2078",
-    "B.Sc.CSIT VIII Semester",
-    "B.Sc.CSIT VIII Semester Exam"
-]
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
@@ -43,6 +37,21 @@ def save_sent_ids(sent_ids):
         json.dump(sorted(sent_ids), f, indent=2)
 
 
+def matches_csit_notice(text):
+    """
+    Flexible matching:
+    - allows extra words
+    - case-insensitive
+    """
+    t = text.lower()
+
+    return (
+        "b.sc.csit" in t and
+        "viii semester" in t and
+        "2078" in t
+    )
+
+
 def main():
     sent_ids = load_sent_ids()
     updated = False
@@ -57,7 +66,7 @@ def main():
         if not text or not href:
             continue
 
-        if not any(k.lower() in text.lower() for k in KEYWORDS):
+        if not matches_csit_notice(text):
             continue
 
         if href.startswith("http"):
@@ -70,7 +79,6 @@ def main():
         if notice_id in sent_ids:
             continue
 
-        # send alert
         send(f"📢 New IOST Notice\n\n{text}\n{full_link}")
 
         sent_ids.add(notice_id)
